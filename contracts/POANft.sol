@@ -18,7 +18,7 @@ contract POANft is ERC721, Ownable {
   string public hiddenMetadataUri = "ipfs://Qmegx9tVatMmojgqCUEBWktAEqg5Vjgd1BkDrs796voesB";
   
   uint256 public maxSupply = 1000;
-  uint256 public maxMintPerWallet = 1000;
+  uint256 public maxMintPerWallet = 10;
   
   bool public revealed = false;
 
@@ -26,7 +26,9 @@ contract POANft is ERC721, Ownable {
   //address public hyperpassAddress = 0xfc82407835167cE30d4d3B4Fc0ab15edA8CfeC13;
   address public hyperpassAddress = 0xC3Ba5050Ec45990f76474163c5bA673c244aaECA; // 테스트
 
+  bytes32 public oglistMerkleRoot;
   bytes32 public whitelistMerkleRoot;
+  bytes32 public vielistMerkleRoot;
 
   struct MintInfo {
     string mintTitle;
@@ -37,17 +39,21 @@ contract POANft is ERC721, Ownable {
     bool isMintEnabled;
   }
   mapping(uint256 => MintInfo) public mintGroups;
-  mapping(address => uint) public LastTimeStamp;
+  mapping(address => uint) public lastTimeStamp;
+  
+  mapping(address => bool) public oglistMinted;
   mapping(address => bool) public whitelistMinted;
+  mapping(address => bool) public vielistMinted;
+
   mapping(address => bool) public hyperpassMinted;
 
   ERC721 HyperpassNft = ERC721(hyperpassAddress);
 
   constructor() ERC721("PRINCE OF ARKRIA", "POA") {
     mintGroups[0] = MintInfo("HYPERPASS Mint", 0 ether, 1, 1661266800, 1661353200, false);
-    mintGroups[1] = MintInfo("FREE Mint", 0 ether, 1, 1661353200, 1661439600, false);
+    mintGroups[1] = MintInfo("OGList Mint", 0 ether, 1, 1661353200, 1661439600, false);
     mintGroups[2] = MintInfo("WhiteList Mint", 0.1 ether, 1, 1661439600, 1661526000, false);
-    mintGroups[3] = MintInfo("WaitList Mint", 0 ether, 1, 1661526000, 1661612400, false);
+    mintGroups[3] = MintInfo("VieList Mint", 0 ether, 1, 1661526000, 1661612400, false);
     mintGroups[4] = MintInfo("Public Mint", 0.2 ether, 1, 1661612400, 1661698800, false);
   }
 
@@ -92,14 +98,24 @@ contract POANft is ERC721, Ownable {
   function mint(uint256 _mintGroupId, uint256 _mintAmount) public payable 
     mintCompliance(_mintGroupId, _mintAmount) 
   {
-      require(LastTimeStamp[msg.sender] + 10 < block.timestamp, "Bot is not allowed:");
+      require(lastTimeStamp[msg.sender] + 10 < block.timestamp, "Bot is not allowed:");
       require(msg.value >= mintGroups[_mintGroupId].cost * _mintAmount, "Insufficient funds!");   
       //require(balanceOf(msg.sender)+_mintAmount <= maxMintPerWallet, "Max Wallet balance exceeded!");
 
       _mintLoop(msg.sender, _mintAmount);
-      LastTimeStamp[msg.sender] =  block.timestamp;
+      lastTimeStamp[msg.sender] =  block.timestamp;
   }
-  
+
+  function mintForVie(uint256 _mintGroupId, bytes32[] calldata merkleProof, uint256 _mintAmount) public payable 
+    isValidMerkleProof(merkleProof, whitelistMerkleRoot) mintCompliance(_mintGroupId, _mintAmount) 
+  {
+      require(!vielistMinted[msg.sender], "Aleady VieList Minted!");
+      require(msg.value >= mintGroups[_mintGroupId].cost * _mintAmount, "Insufficient funds!"); 
+
+      _mintLoop(msg.sender, _mintAmount);
+      vielistMinted[msg.sender] = true;
+  }  
+
   function mintForWhite(uint256 _mintGroupId, bytes32[] calldata merkleProof, uint256 _mintAmount) public payable 
     isValidMerkleProof(merkleProof, whitelistMerkleRoot) mintCompliance(_mintGroupId, _mintAmount) 
   {
@@ -110,12 +126,19 @@ contract POANft is ERC721, Ownable {
       whitelistMinted[msg.sender] = true;
   }  
 
+  function mintForOg(uint256 _mintGroupId, bytes32[] calldata merkleProof, uint256 _mintAmount) public payable 
+    isValidMerkleProof(merkleProof,oglistMerkleRoot) mintCompliance(_mintGroupId, _mintAmount) 
+  {
+      require(!oglistMinted[msg.sender], "Aleady OGList Minted!");
+      require(msg.value >= mintGroups[_mintGroupId].cost * _mintAmount, "Insufficient funds!"); 
+
+      _mintLoop(msg.sender, _mintAmount);
+      oglistMinted[msg.sender] = true;
+  }  
+
   function mintForHyperpass(uint256 _mintGroupId, uint256 _mintAmount) public 
     mintCompliance(_mintGroupId, _mintAmount) 
   {
-    //if (keccak256(bytes(mintGroups[_mintGroupId].mintTitle)) == keccak256(bytes("HYPERPASS Mint"))) {
-          //hyperpassAddress.call(abi.encodeWithSignature("ballanceOf(address, uint256)", msg.sender));
-    //}
     require(HyperpassNft.balanceOf(msg.sender) > 0, "You are not HAPERPASS Holder.");
     _mintLoop(msg.sender, _mintAmount);
   }
