@@ -13,12 +13,10 @@ contract POANft is ERC721, Ownable {
 
   Counters.Counter private supply;
 
-  string public baseUri = "";
+  string public baseUri = "https://poa-meta.s3.ap-northeast-2.amazonaws.com/nft/";
   string public uriSuffix = ".json";
-  string public hiddenMetadataUri = "ipfs://Qmegx9tVatMmojgqCUEBWktAEqg5Vjgd1BkDrs796voesB";
   
   uint256 public maxSupply = 1000;
-  uint256 public maxMintPerWallet = 10;
   
   bool public revealed = false;
 
@@ -40,7 +38,7 @@ contract POANft is ERC721, Ownable {
   }
   mapping(uint256 => MintInfo) public mintGroups;
   mapping(address => uint) public lastTimeStamp;
-  
+
   mapping(address => bool) public oglistMinted;
   mapping(address => bool) public whitelistMinted;
   mapping(address => bool) public vielistMinted;
@@ -50,11 +48,11 @@ contract POANft is ERC721, Ownable {
   ERC721 HyperpassNft = ERC721(hyperpassAddress);
 
   constructor() ERC721("PRINCE OF ARKRIA", "POA") {
-    mintGroups[0] = MintInfo("HYPERPASS Mint", 0 ether, 1, 1661266800, 1661353200, false);
-    mintGroups[1] = MintInfo("OGList Mint", 0 ether, 1, 1661353200, 1661439600, false);
-    mintGroups[2] = MintInfo("WhiteList Mint", 0.1 ether, 1, 1661439600, 1661526000, false);
-    mintGroups[3] = MintInfo("VieList Mint", 0 ether, 1, 1661526000, 1661612400, false);
-    mintGroups[4] = MintInfo("Public Mint", 0.2 ether, 1, 1661612400, 1661698800, false);
+    mintGroups[0] = MintInfo("HYPERPASS Mint", 0 ether, 2, 1675153953, 1675380743, true);
+    mintGroups[1] = MintInfo("OGList Mint", 0 ether, 2, 1675153953, 1675380743, true);
+    mintGroups[2] = MintInfo("WhiteList Mint", 0 ether, 2, 1675153953, 1675380743, false);
+    mintGroups[3] = MintInfo("VieList Mint", 0.01 ether, 2, 1675380743, 1675467143, false);
+    mintGroups[4] = MintInfo("Public Mint", 0.02 ether, 10, 1675153953, 1675380743, false);
   }
 
   modifier mintCompliance(uint256 _mintGroupId, uint256 _mintAmount) {
@@ -80,7 +78,9 @@ contract POANft is ERC721, Ownable {
     _;
   }
 
-  function getInfomation(uint256 _mintGroupId) public view returns (uint256 tSupply, uint256 mSupply, uint256 date, uint256 payCost, bool enabled, string memory mintTitle) {
+  function getInfomation(uint256 _mintGroupId) public view 
+    returns (uint256 tSupply, uint256 mSupply, uint256 date, uint256 payCost, bool enabled, string memory mintTitle) 
+  {
       return (
         totalSupply(), 
         maxSupply, 
@@ -91,16 +91,11 @@ contract POANft is ERC721, Ownable {
       );
   }
 
-  function totalSupply() public view returns (uint256) {
-    return supply.current();
-  }
-
   function mint(uint256 _mintGroupId, uint256 _mintAmount) public payable 
     mintCompliance(_mintGroupId, _mintAmount) 
   {
       require(lastTimeStamp[msg.sender] + 10 < block.timestamp, "Bot is not allowed:");
       require(msg.value >= mintGroups[_mintGroupId].cost * _mintAmount, "Insufficient funds!");   
-      //require(balanceOf(msg.sender)+_mintAmount <= maxMintPerWallet, "Max Wallet balance exceeded!");
 
       _mintLoop(msg.sender, _mintAmount);
       lastTimeStamp[msg.sender] =  block.timestamp;
@@ -143,7 +138,9 @@ contract POANft is ERC721, Ownable {
     _mintLoop(msg.sender, _mintAmount);
   }
 
-  function mintForAirdrop(uint256 _mintAmount, address[] memory addresses) public onlyOwner {
+  function mintForAirdrop(uint256 _mintAmount, address[] memory addresses) public 
+    onlyOwner 
+  {
     require(supply.current() + (_mintAmount * addresses.length) <= maxSupply, "Max supply exceeded!");
     require(_mintAmount > 0, "Invalid mint amount!");
     for (uint256 i = 0; i < addresses.length; i++) {
@@ -151,12 +148,13 @@ contract POANft is ERC721, Ownable {
     }
   }
 
+  function totalSupply() public view 
+    returns (uint256) 
+  {
+    return supply.current();
+  }
 
-
-
-  function walletOfOwner(address _owner)
-    public
-    view
+  function walletOfOwner(address _owner) public view
     returns (uint256[] memory)
   {
     uint256 ownerTokenCount = balanceOf(_owner);
@@ -176,28 +174,6 @@ contract POANft is ERC721, Ownable {
     }
 
     return ownedTokenIds;
-  }
-
-  function tokenURI(uint256 _tokenId)
-    public
-    view
-    virtual
-    override
-    returns (string memory)
-  {
-    require(
-      _exists(_tokenId),
-      "ERC721Metadata: URI query for nonexistent token"
-    );
-
-    if (revealed == false) {
-      return hiddenMetadataUri;
-    }
-
-    string memory currentBaseURI = _baseURI();
-    return bytes(currentBaseURI).length > 0
-        ? string(abi.encodePacked(currentBaseURI, _tokenId.toString(), uriSuffix))
-        : "";
   }
 
   // Set Mint Infomation
@@ -241,15 +217,7 @@ contract POANft is ERC721, Ownable {
   function setWhitelistMerkleRoot(bytes32 merkleRoot) external onlyOwner {
     whitelistMerkleRoot = merkleRoot;
   }
-
-  function setMaxMintPerWallet(uint256 _maxMintPerWallet) public onlyOwner {
-    maxMintPerWallet = _maxMintPerWallet;
-  }
   // Set Mint Infomation End
-
-  function setHiddenMetadataUri(string memory _hiddenMetadataUri) public onlyOwner {
-    hiddenMetadataUri = _hiddenMetadataUri;
-  }
 
   function setBaseUri(string memory _baseUri) public onlyOwner {
     baseUri = _baseUri;
