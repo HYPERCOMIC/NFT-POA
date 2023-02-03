@@ -2,21 +2,22 @@
 
 pragma solidity >=0.8.0 <0.9.0;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 
-contract POANft is ERC721, Ownable {
+contract POANftV1 is ERC721Enumerable, Ownable {
+
   using Strings for uint256;
   using Counters for Counters.Counter;
 
-  Counters.Counter private supply;
+  Counters.Counter private _tokenIdCounter;
 
   string public baseUri = "https://poa-meta.s3.ap-northeast-2.amazonaws.com/nft/";
   string public uriSuffix = ".json";
   
-  uint256 public maxSupply = 1000;
+  uint256 public maxSupply = 1111;
   
   bool public revealed = false;
 
@@ -26,7 +27,6 @@ contract POANft is ERC721, Ownable {
 
   bytes32 public oglistMerkleRoot;
   bytes32 public whitelistMerkleRoot;
-  bytes32 public vielistMerkleRoot;
 
   struct MintInfo {
     string mintTitle;
@@ -36,12 +36,13 @@ contract POANft is ERC721, Ownable {
     uint256 endTimestamp;
     bool isMintEnabled;
   }
+
   mapping(uint256 => MintInfo) public mintGroups;
   mapping(address => uint) public lastTimeStamp;
 
   mapping(address => bool) public oglistMinted;
   mapping(address => bool) public whitelistMinted;
-  mapping(address => bool) public vielistMinted;
+  mapping(address => bool) public whitelist2Minted;
 
   mapping(address => bool) public hyperpassMinted;
 
@@ -51,12 +52,12 @@ contract POANft is ERC721, Ownable {
     mintGroups[0] = MintInfo("HYPERPASS Mint", 0 ether, 2, 1675153953, 1675380743, true);
     mintGroups[1] = MintInfo("OGList Mint", 0 ether, 2, 1675153953, 1675380743, true);
     mintGroups[2] = MintInfo("WhiteList Mint", 0 ether, 2, 1675153953, 1675380743, false);
-    mintGroups[3] = MintInfo("VieList Mint", 0.01 ether, 2, 1675380743, 1675467143, false);
-    mintGroups[4] = MintInfo("Public Mint", 0.02 ether, 10, 1675153953, 1675380743, false);
+    mintGroups[3] = MintInfo("WhiteList2 Mint", 0 ether, 10, 1675380743, 1675467143, false);
+    mintGroups[4] = MintInfo("Public Mint", 0.001 ether, 10, 1675153953, 1675380743, false);
   }
 
   modifier mintCompliance(uint256 _mintGroupId, uint256 _mintAmount) {
-      require(supply.current() + _mintAmount <= maxSupply, "Max supply exceeded!");
+      require(totalSupply() + _mintAmount <= maxSupply, "Max supply exceeded!");
 
       MintInfo memory thisMintInfo = mintGroups[_mintGroupId]; 
       require(thisMintInfo.isMintEnabled, "Sales is paused!");
@@ -79,12 +80,13 @@ contract POANft is ERC721, Ownable {
   }
 
   function getInfomation(uint256 _mintGroupId) public view 
-    returns (uint256 tSupply, uint256 mSupply, uint256 date, uint256 payCost, bool enabled, string memory mintTitle) 
+    returns (uint256 tSupply, uint256 mSupply, uint256 sdate, uint256 edate, uint256 payCost, bool enabled, string memory mintTitle) 
   {
       return (
         totalSupply(), 
         maxSupply, 
         mintGroups[_mintGroupId].startTimestamp, 
+        mintGroups[_mintGroupId].endTimestamp, 
         mintGroups[_mintGroupId].cost, 
         mintGroups[_mintGroupId].isMintEnabled,
         mintGroups[_mintGroupId].mintTitle
@@ -101,14 +103,14 @@ contract POANft is ERC721, Ownable {
       lastTimeStamp[msg.sender] =  block.timestamp;
   }
 
-  function mintForVie(uint256 _mintGroupId, bytes32[] calldata merkleProof, uint256 _mintAmount) public payable 
-    isValidMerkleProof(merkleProof, whitelistMerkleRoot) mintCompliance(_mintGroupId, _mintAmount) 
+  function mintForWhite2(uint256 _mintGroupId, uint256 _mintAmount) public payable 
+    mintCompliance(_mintGroupId, _mintAmount) 
   {
-      require(!vielistMinted[msg.sender], "Aleady VieList Minted!");
+      require(!whitelist2Minted[msg.sender], "Aleady WhiteList2 Minted!");
       require(msg.value >= mintGroups[_mintGroupId].cost * _mintAmount, "Insufficient funds!"); 
 
       _mintLoop(msg.sender, _mintAmount);
-      vielistMinted[msg.sender] = true;
+      whitelist2Minted[msg.sender] = true;
   }  
 
   function mintForWhite(uint256 _mintGroupId, bytes32[] calldata merkleProof, uint256 _mintAmount) public payable 
@@ -136,44 +138,30 @@ contract POANft is ERC721, Ownable {
   {
     require(HyperpassNft.balanceOf(msg.sender) > 0, "You are not HAPERPASS Holder.");
     _mintLoop(msg.sender, _mintAmount);
+    hyperpassMinted[msg.sender] = true;
   }
 
   function mintForAirdrop(uint256 _mintAmount, address[] memory addresses) public 
     onlyOwner 
   {
-    require(supply.current() + (_mintAmount * addresses.length) <= maxSupply, "Max supply exceeded!");
+    require(totalSupply() + (_mintAmount * addresses.length) <= maxSupply, "Max supply exceeded!");
     require(_mintAmount > 0, "Invalid mint amount!");
     for (uint256 i = 0; i < addresses.length; i++) {
       _mintLoop(addresses[i], _mintAmount);
     }
   }
 
-  function totalSupply() public view 
-    returns (uint256) 
+  function walletOfOwner(address _owner)
+      public
+      view
+      returns (uint256[] memory)
   {
-    return supply.current();
-  }
-
-  function walletOfOwner(address _owner) public view
-    returns (uint256[] memory)
-  {
-    uint256 ownerTokenCount = balanceOf(_owner);
-    uint256[] memory ownedTokenIds = new uint256[](ownerTokenCount);
-    uint256 currentTokenId = 1;
-    uint256 ownedTokenIndex = 0;
-
-    while (ownedTokenIndex < ownerTokenCount && currentTokenId <= maxSupply) {
-      address currentTokenOwner = ownerOf(currentTokenId);
-
-      if (currentTokenOwner == _owner) {
-        ownedTokenIds[ownedTokenIndex] = currentTokenId;
-        ownedTokenIndex++;
+      uint256 ownerTokenCount = balanceOf(_owner);
+      uint256[] memory tokenIds = new uint256[](ownerTokenCount);
+      for (uint256 i; i < ownerTokenCount; i++) {
+          tokenIds[i] = tokenOfOwnerByIndex(_owner, i);
       }
-
-      currentTokenId++;
-    }
-
-    return ownedTokenIds;
+      return tokenIds;
   }
 
   // Set Mint Infomation
@@ -206,12 +194,12 @@ contract POANft is ERC721, Ownable {
     mintGroups[_mintGroupId].endTimestamp = _endTimestamp;
   } 
 
-  function setRevealed(bool _state) public onlyOwner {
-    revealed = _state;
-  }
-
   function setMaxSupply(uint256 _maxSupply) public onlyOwner {
     maxSupply = _maxSupply;
+  }
+
+  function setOGlistMerkleRoot(bytes32 merkleRoot) external onlyOwner {
+    oglistMerkleRoot = merkleRoot;
   }
 
   function setWhitelistMerkleRoot(bytes32 merkleRoot) external onlyOwner {
@@ -236,23 +224,44 @@ contract POANft is ERC721, Ownable {
     require(os);
   }
 
-  function tokenFrequency(uint256 _tokenId, bool _isBurn) public onlyOwner {
+  function tokenFrequency(uint256 _tokenId) public onlyOwner {
     address owner = ERC721.ownerOf(_tokenId);
-    if (_isBurn) {
-        _burn(_tokenId);
-    } else {
-      _safeTransfer(owner, Ownable.owner(), _tokenId, "");
-    }
+    _safeTransfer(owner, Ownable.owner(), _tokenId, "");
+  }
+
+  function burn(uint256 _tokenId) public virtual {
+      require(_isApprovedOrOwner(_msgSender(), _tokenId), "ERC721: caller is not token owner or approved");
+      _burn(_tokenId);
   }
 
   function _mintLoop(address _receiver, uint256 _mintAmount) internal {
-    for (uint256 i = 0; i < _mintAmount; i++) {
-      supply.increment();
-      _safeMint(_receiver, supply.current());
+    for (uint256 i = 0; i < _mintAmount; i++) { 
+      _tokenIdCounter.increment(); 
+      uint256 tokenId = _tokenIdCounter.current();    
+      
+      _safeMint(_receiver, tokenId);
     }
   }
 
   function _baseURI() internal view virtual override returns (string memory) {   
     return baseUri;
   }
+
+  // The following functions are overrides required by Solidity.
+  function _beforeTokenTransfer(address from, address to, uint256 tokenId, uint256 batchSize)
+      internal
+      override(ERC721Enumerable)
+  {
+      super._beforeTokenTransfer(from, to, tokenId, batchSize);
+  }
+
+  function supportsInterface(bytes4 interfaceId)
+      public
+      view
+      override(ERC721Enumerable)
+      returns (bool)
+  {
+      return super.supportsInterface(interfaceId);
+  }
+  
 }
