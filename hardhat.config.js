@@ -1,5 +1,6 @@
 require('dotenv').config();
 require("@nomicfoundation/hardhat-toolbox");
+require('hardhat-contract-sizer');
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
@@ -7,7 +8,7 @@ module.exports = {
   settings : {
     optimizer : {
       enabled : true,
-      runs : 200,
+      runs : 400,
     }
   },
   networks: {
@@ -17,6 +18,10 @@ module.exports = {
     },
     sepolia: {
       url: process.env.APP_SEPOLIA_RPC_URL,
+      accounts: [process.env.APP_PRIVATE_KEY],
+    },
+    goerli: {
+      url: process.env.APP_GOERLI_RPC_URL,
       accounts: [process.env.APP_PRIVATE_KEY],
     },
     mumbai: {
