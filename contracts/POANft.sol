@@ -28,6 +28,7 @@ contract POANft is ERC721Enumerable, Ownable {
   }
 
   mapping(uint => MintInfo) public mintGroups;
+  mapping(address => uint) public LastTimeStamp;
  
   address public hubAddress = 0x43694Fd007a068909aC0951cFec4DfC6E3De42cf; 
   address[] public ogMinted;
@@ -35,10 +36,10 @@ contract POANft is ERC721Enumerable, Ownable {
   address[] public white2Minted;
 
   constructor() ERC721("PRINCE OF ARKRIA", "POA") {
-    mintGroups[0] = MintInfo("OG", 0 ether, 2, 1675153953, 1675799447);
-    mintGroups[1] = MintInfo("WL", 0 ether, 2, 1675153953, 1675799447);
-    mintGroups[2] = MintInfo("WL2", 0 ether, 2, 1675380743, 1675799447);
-    mintGroups[3] = MintInfo("PB", 0.001 ether, 10, 1675153953, 1675799447);
+    mintGroups[0] = MintInfo("OG", 0 ether, 2, 1675836000, 1675837800);
+    mintGroups[1] = MintInfo("WL", 0 ether, 1, 1675837800, 1675839600);
+    mintGroups[2] = MintInfo("WL2", 0 ether, 1, 1675839600, 1675841400);
+    mintGroups[3] = MintInfo("PB", 0.001 ether, 1, 1675841400, 1675843200);
   }
 
   modifier mintCompliance(uint _mintGroupId, uint256 _mintAmount) {
@@ -61,25 +62,14 @@ contract POANft is ERC721Enumerable, Ownable {
     _;
   }
 
-  function getInfomation(uint _mintGroupId) public view 
-    returns (uint256 tSupply, uint256 mSupply, uint256 sdate, uint256 edate, uint256 payCost, string memory mintTitle) 
-  {
-      return (
-        totalSupply(), 
-        maxSupply, 
-        mintGroups[_mintGroupId].startTimestamp, 
-        mintGroups[_mintGroupId].endTimestamp, 
-        mintGroups[_mintGroupId].cost, 
-        mintGroups[_mintGroupId].mintTitle
-      );
-  }
-
   function mint(uint _mintGroupId, uint256 _mintAmount) public payable 
     mintCompliance(_mintGroupId, _mintAmount) 
   {
+      require(LastTimeStamp[msg.sender] + 10 < block.timestamp, "Bot is not allowed:");
       require(msg.value >= mintGroups[_mintGroupId].cost * _mintAmount, "Insufficient funds!");   
 
       _mintLoop(msg.sender, _mintAmount);
+      LastTimeStamp[msg.sender] =  block.timestamp;
   }
 
   function mintForWhite2(uint _mintGroupId, uint256 _mintAmount) public payable 
