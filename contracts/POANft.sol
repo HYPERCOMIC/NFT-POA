@@ -7,17 +7,18 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 
-contract POANft is ERC721Enumerable, Ownable {
+contract POANFT is ERC721Enumerable, Ownable {
 
   using Strings for uint256;
   using Counters for Counters.Counter;
 
   Counters.Counter private tokenIdCounter;
 
-  string public baseUri = "https://poa-meta.s3.ap-northeast-2.amazonaws.com/nft/";
+  string public baseUri = "https://poa-meta.hypercomic.io/nft/";
   uint256 public maxSupply = 1111;
-  bytes32 public oglistMerkleRoot;
-  bytes32 public whitelistMerkleRoot;
+  bytes32 public oglistMerkleRoot = 0x0d2a07507ed7a3a3e8604f25cf812ab8a2344a0642f95993447bd5f0cd5f38e0;
+  bytes32 public whitelistMerkleRoot = 0x4f34bb4f81c54ee5b58117a61a58ffe1881aa83587eca750da7b5c8fe6ee2fdc;
+  bytes32 public whitelist2MerkleRoot = 0x55393c84c8c533ef8ba3b8d3e96f8f66217a937bd7e3639237fdfd3adbd09d61;
 
   struct MintInfo {
     string mintTitle;
@@ -30,16 +31,15 @@ contract POANft is ERC721Enumerable, Ownable {
   mapping(uint => MintInfo) public mintGroups;
   mapping(address => uint) public LastTimeStamp;
  
-  address public hubAddress = 0x43694Fd007a068909aC0951cFec4DfC6E3De42cf; 
-  address[] public ogMinted;
-  address[] public whiteMinted;
-  address[] public white2Minted;
+  address public hubAddress = 0x4860E7Cc9902Eb06b73EeBd308fAa7d6588D526C; 
+  address[] public listMinted;
+  
 
-  constructor() ERC721("PRINCE OF ARKRIA", "POA") {
-    mintGroups[0] = MintInfo("OG", 0 ether, 2, 1675836000, 1675837800);
-    mintGroups[1] = MintInfo("WL", 0 ether, 1, 1675837800, 1675839600);
-    mintGroups[2] = MintInfo("WL2", 0 ether, 1, 1675839600, 1675841400);
-    mintGroups[3] = MintInfo("PB", 0.001 ether, 1, 1675841400, 1675843200);
+  constructor() ERC721("Prince of Arkria Official", "P.O.A") {
+    mintGroups[0] = MintInfo("OG", 0 ether, 2, 1676350800, 1676365200);
+    mintGroups[1] = MintInfo("WL", 0 ether, 1, 1676365200, 1676379600);
+    mintGroups[2] = MintInfo("WL2", 0 ether, 1, 1676379600, 1676422800);
+    mintGroups[3] = MintInfo("PB", 0 ether, 1, 1676422800, 1676466000);
   }
 
   modifier mintCompliance(uint _mintGroupId, uint256 _mintAmount) {
@@ -57,8 +57,9 @@ contract POANft is ERC721Enumerable, Ownable {
             root,
             keccak256(abi.encodePacked(msg.sender))
         ),
-        "Address does not exist in Whitelist!"
+        "Address does not exist in Mintlist!"
     );
+    require(!checkMinted(msg.sender, listMinted), "Aleady Minted!");
     _;
   }
 
@@ -72,34 +73,31 @@ contract POANft is ERC721Enumerable, Ownable {
       LastTimeStamp[msg.sender] =  block.timestamp;
   }
 
-  function mintForWhite2(uint _mintGroupId, uint256 _mintAmount) public payable 
-    mintCompliance(_mintGroupId, _mintAmount) 
+  function mintForWhite2(uint _mintGroupId, bytes32[] calldata merkleProof, uint256 _mintAmount) public payable 
+    isValidMerkleProof(merkleProof, whitelist2MerkleRoot) mintCompliance(_mintGroupId, _mintAmount) 
   {
-      require(!checkMinted(msg.sender, white2Minted), "Aleady WhiteList2 Minted!");
       require(msg.value >= mintGroups[_mintGroupId].cost * _mintAmount, "Insufficient funds!"); 
 
       _mintLoop(msg.sender, _mintAmount);
-      white2Minted.push(msg.sender);
+      listMinted.push(msg.sender);
   }  
 
   function mintForWhite(uint _mintGroupId, bytes32[] calldata merkleProof, uint256 _mintAmount) public payable 
     isValidMerkleProof(merkleProof, whitelistMerkleRoot) mintCompliance(_mintGroupId, _mintAmount) 
   {
-      require(!checkMinted(msg.sender, whiteMinted), "Aleady WhiteList Minted!");
       require(msg.value >= mintGroups[_mintGroupId].cost * _mintAmount, "Insufficient funds!"); 
 
       _mintLoop(msg.sender, _mintAmount);
-      whiteMinted.push(msg.sender);
+      listMinted.push(msg.sender);
   }  
 
   function mintForOg(uint _mintGroupId, bytes32[] calldata merkleProof, uint256 _mintAmount) public payable
     isValidMerkleProof(merkleProof,oglistMerkleRoot) mintCompliance(_mintGroupId, _mintAmount) 
   {
-      require(!checkMinted(msg.sender, ogMinted), "Aleady OGList Minted!");
       require(msg.value >= mintGroups[_mintGroupId].cost * _mintAmount, "Insufficient funds!"); 
 
       _mintLoop(msg.sender, _mintAmount);
-      ogMinted.push(msg.sender);
+      listMinted.push(msg.sender);
   }  
 
   function mintForAirdrop(uint256 _mintAmount, address[] memory addresses) public 
@@ -160,7 +158,7 @@ contract POANft is ERC721Enumerable, Ownable {
     mintGroups[_mintGroupId].endTimestamp = _endTimestamp;
   } 
 
-  function setOGlistMerkleRoot(bytes32 merkleRoot) external onlyOwner {
+  function setOglistMerkleRoot(bytes32 merkleRoot) external onlyOwner {
     oglistMerkleRoot = merkleRoot;
   }
 
@@ -168,10 +166,12 @@ contract POANft is ERC721Enumerable, Ownable {
     whitelistMerkleRoot = merkleRoot;
   }
 
+  function setWhitelist2MerkleRoot(bytes32 merkleRoot) external onlyOwner {
+    whitelist2MerkleRoot = merkleRoot;
+  }
+
   function resetMintedList() external onlyOwner {
-    delete ogMinted;
-    delete whiteMinted;
-    delete white2Minted;
+    delete listMinted;
   }
 
   function setMaxSupply(uint256 _maxSupply) external onlyOwner {

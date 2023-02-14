@@ -1,7 +1,7 @@
 const hre = require("hardhat");
 
 async function main() {
-    const ContractCode = await hre.ethers.getContractFactory("POANft");
+    const ContractCode = await hre.ethers.getContractFactory("POANFT");
     const contractCode = await ContractCode.deploy();
 
     await contractCode.deployed();
