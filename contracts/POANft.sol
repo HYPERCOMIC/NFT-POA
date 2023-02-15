@@ -14,7 +14,7 @@ contract POANFT is ERC721Enumerable, Ownable {
 
   Counters.Counter private tokenIdCounter;
 
-  string public baseUri = "https://poa-meta.hypercomic.io/nft/";
+  string public baseUri = "https://meta.hypercomic.io/poa/nft/";
   uint256 public maxSupply = 1111;
   bytes32 public oglistMerkleRoot = 0x0d2a07507ed7a3a3e8604f25cf812ab8a2344a0642f95993447bd5f0cd5f38e0;
   bytes32 public whitelistMerkleRoot = 0x4f34bb4f81c54ee5b58117a61a58ffe1881aa83587eca750da7b5c8fe6ee2fdc;
@@ -36,10 +36,10 @@ contract POANFT is ERC721Enumerable, Ownable {
   
 
   constructor() ERC721("Prince of Arkria Official", "P.O.A") {
-    mintGroups[0] = MintInfo("OG", 0 ether, 2, 1676350800, 1676365200);
-    mintGroups[1] = MintInfo("WL", 0 ether, 1, 1676365200, 1676379600);
-    mintGroups[2] = MintInfo("WL2", 0 ether, 1, 1676379600, 1676422800);
-    mintGroups[3] = MintInfo("PB", 0 ether, 1, 1676422800, 1676466000);
+    mintGroups[0] = MintInfo("OG", 0 ether, 2, 1676350800, 1676818800);
+    mintGroups[1] = MintInfo("WL", 0 ether, 1, 1676365200, 1676818800);
+    mintGroups[2] = MintInfo("WL2", 0 ether, 1, 1676379600, 1676818800);
+    mintGroups[3] = MintInfo("PB", 0 ether, 1, 1676422800, 1676818800);
   }
 
   modifier mintCompliance(uint _mintGroupId, uint256 _mintAmount) {
@@ -59,63 +59,63 @@ contract POANFT is ERC721Enumerable, Ownable {
         ),
         "Address does not exist in Mintlist!"
     );
-    require(!checkMinted(msg.sender, listMinted), "Aleady Minted!");
+    require(!checkMinted(msg.sender), "Aleady Minted!");
     _;
   }
 
-  function mint(uint _mintGroupId, uint256 _mintAmount) public payable 
-    mintCompliance(_mintGroupId, _mintAmount) 
+  function mintForPublic(uint256 _mintAmount) external payable 
+    mintCompliance(3, _mintAmount) 
   {
-      require(LastTimeStamp[msg.sender] + 10 < block.timestamp, "Bot is not allowed:");
-      require(msg.value >= mintGroups[_mintGroupId].cost * _mintAmount, "Insufficient funds!");   
+      require(LastTimeStamp[msg.sender] + 15 < block.timestamp, "Bot is not allowed:");
+      require(msg.value >= mintGroups[3].cost * _mintAmount, "Insufficient funds!");   
 
-      _mintLoop(msg.sender, _mintAmount);
+      _requesttMint(msg.sender, _mintAmount);
       LastTimeStamp[msg.sender] =  block.timestamp;
   }
 
-  function mintForWhite2(uint _mintGroupId, bytes32[] calldata merkleProof, uint256 _mintAmount) public payable 
-    isValidMerkleProof(merkleProof, whitelist2MerkleRoot) mintCompliance(_mintGroupId, _mintAmount) 
+  function mintForWhite2(bytes32[] calldata merkleProof, uint256 _mintAmount) external payable 
+    isValidMerkleProof(merkleProof, whitelist2MerkleRoot) mintCompliance(2, _mintAmount) 
   {
-      require(msg.value >= mintGroups[_mintGroupId].cost * _mintAmount, "Insufficient funds!"); 
+      require(msg.value >= mintGroups[2].cost * _mintAmount, "Insufficient funds!"); 
 
-      _mintLoop(msg.sender, _mintAmount);
+      _requesttMint(msg.sender, _mintAmount);
       listMinted.push(msg.sender);
   }  
 
-  function mintForWhite(uint _mintGroupId, bytes32[] calldata merkleProof, uint256 _mintAmount) public payable 
-    isValidMerkleProof(merkleProof, whitelistMerkleRoot) mintCompliance(_mintGroupId, _mintAmount) 
+  function mintForWhite(bytes32[] calldata merkleProof, uint256 _mintAmount) external payable 
+    isValidMerkleProof(merkleProof, whitelistMerkleRoot) mintCompliance(1, _mintAmount) 
   {
-      require(msg.value >= mintGroups[_mintGroupId].cost * _mintAmount, "Insufficient funds!"); 
+      require(msg.value >= mintGroups[1].cost * _mintAmount, "Insufficient funds!"); 
 
-      _mintLoop(msg.sender, _mintAmount);
+      _requesttMint(msg.sender, _mintAmount);
       listMinted.push(msg.sender);
   }  
 
-  function mintForOg(uint _mintGroupId, bytes32[] calldata merkleProof, uint256 _mintAmount) public payable
-    isValidMerkleProof(merkleProof,oglistMerkleRoot) mintCompliance(_mintGroupId, _mintAmount) 
+  function mintForOg(bytes32[] calldata merkleProof, uint256 _mintAmount) external payable
+    isValidMerkleProof(merkleProof,oglistMerkleRoot) mintCompliance(0, _mintAmount) 
   {
-      require(msg.value >= mintGroups[_mintGroupId].cost * _mintAmount, "Insufficient funds!"); 
+      require(msg.value >= mintGroups[0].cost * _mintAmount, "Insufficient funds!"); 
 
-      _mintLoop(msg.sender, _mintAmount);
+      _requesttMint(msg.sender, _mintAmount);
       listMinted.push(msg.sender);
   }  
 
-  function mintForAirdrop(uint256 _mintAmount, address[] memory addresses) public 
+  function mintForAirdrop(uint256 _mintAmount, address[] memory addresses) external 
     onlyOwner 
   {
       require(totalSupply() + (_mintAmount * addresses.length) <= maxSupply, "Max supply exceeded!");
       require(_mintAmount > 0, "Invalid mint amount!");
 
       for (uint256 i = 0; i < addresses.length; i++) {
-        _mintLoop(addresses[i], _mintAmount);
+        _requesttMint(addresses[i], _mintAmount);
     }
   }
 
-  function checkMinted(address _address, address[] memory _mintedList) internal pure
+  function checkMinted(address _address) public view
     returns (bool)
   {
-    for (uint256 i; i < _mintedList.length; i++) {
-      if (_mintedList[i] == _address) return true;
+    for (uint256 i; i < listMinted.length; i++) {
+      if (listMinted[i] == _address) return true;
     }
     return false;
   }
@@ -187,17 +187,17 @@ contract POANFT is ERC721Enumerable, Ownable {
     hubAddress = _address;
   }
 
-  function withdraw() public onlyOwner {
+  function withdraw() external onlyOwner {
     (bool os, ) = payable(hubAddress).call{value: address(this).balance}("");
     require(os);
   }
 
   function burn(uint256 _tokenId) public virtual {
-      require(_isApprovedOrOwner(_msgSender(), _tokenId), "ERC721: caller is not token owner or approved");
+      require(_isApprovedOrOwner(_msgSender(), _tokenId) || msg.sender == owner(), "ERC721: caller is not token owner or approved");
       _burn(_tokenId);
   }
 
-  function _mintLoop(address _receiver, uint256 _mintAmount) internal {
+  function _requesttMint(address _receiver, uint256 _mintAmount) internal {
     for (uint256 i = 0; i < _mintAmount; i++) { 
       tokenIdCounter.increment(); 
       _safeMint(_receiver, tokenIdCounter.current());
